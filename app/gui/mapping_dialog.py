@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from app.data.column_mapping import duplicate_targets
 from app.schema import REQUIRED_FIELDS
 
 
@@ -80,4 +81,16 @@ class ColumnMappingDialog(QDialog):
                 "Please choose a column for: " + ", ".join(missing)
             )
             return
+
+        conflicts = duplicate_targets(mapping)
+        if conflicts:
+            field_labels = {f.name: f.label for f in REQUIRED_FIELDS}
+            conflicting_fields = sorted(
+                field_labels[name] for names in conflicts.values() for name in names
+            )
+            self._status_label.setText(
+                "Each column can only be used once - fix: " + ", ".join(conflicting_fields)
+            )
+            return
+
         self.accept()

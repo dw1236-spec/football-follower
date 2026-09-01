@@ -7,6 +7,7 @@ def test_initial_state_defaults():
     assert state.loaded_file_path is None
     assert state.raw_dataframe is None
     assert state.scoring_system == "PPR"
+    assert state.league_format == "Standard"
     assert state.selected_positions == {"QB", "RB", "WR", "TE", "K", "DEF"}
     assert state.analysis_results is None
 
@@ -71,3 +72,17 @@ def test_reset_can_fully_clear_state():
     store.reset(keep_scoring_system=False, keep_positions=False)
     assert store.state.scoring_system == "PPR"
     assert store.state.selected_positions == {"QB", "RB", "WR", "TE", "K", "DEF"}
+
+
+def test_reset_preserves_league_format_by_default():
+    store = StateStore()
+    store.update(league_format="Superflex")
+    store.reset()
+    assert store.state.league_format == "Superflex"
+
+
+def test_reset_can_clear_league_format():
+    store = StateStore()
+    store.update(league_format="Superflex")
+    store.reset(keep_league_format=False)
+    assert store.state.league_format == "Standard"

@@ -20,11 +20,13 @@ class AnalysisWorker(QThread):
         self,
         df: pd.DataFrame,
         selected_positions: set[str],
+        league_format: str = "Standard",
         parent=None,
     ) -> None:
         super().__init__(parent)
         self._df = df
         self._selected_positions = selected_positions
+        self._league_format = league_format
 
     def run(self) -> None:  # noqa: D102 - QThread override
         logger = get_logger()
@@ -42,7 +44,7 @@ class AnalysisWorker(QThread):
                 return
 
             self.progress.emit("Calculating correlations...")
-            result = analyze(self._df, self._selected_positions)
+            result = analyze(self._df, self._selected_positions, self._league_format)
 
             self.progress.emit("Generating charts...")
             charts = generate_all_charts(result)

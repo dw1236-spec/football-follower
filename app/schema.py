@@ -7,6 +7,19 @@ POSITIONS = ["QB", "RB", "WR", "TE", "K", "DEF"]
 
 SCORING_SYSTEMS = ["PPR", "Half-PPR", "Standard"]
 
+LEAGUE_FORMATS = ["Standard", "Superflex"]
+
+FLEX_ELIGIBLE_POSITIONS: tuple[str, ...] = ("RB", "WR", "TE")
+SUPERFLEX_ELIGIBLE_POSITIONS: tuple[str, ...] = ("QB", "RB", "WR", "TE")
+
+# Extra pooled-position rows added to the analysis (alongside the real
+# per-position rows) when the league format calls for them, keyed by the
+# label shown in the summary table/exports.
+SUPERFLEX_POSITION_GROUPS: dict[str, tuple[str, ...]] = {
+    "FLEX": FLEX_ELIGIBLE_POSITIONS,
+    "SUPERFLEX": SUPERFLEX_ELIGIBLE_POSITIONS,
+}
+
 
 @dataclass(frozen=True)
 class SchemaField:

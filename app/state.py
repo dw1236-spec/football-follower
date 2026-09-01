@@ -22,6 +22,7 @@ class AppState:
     raw_dataframe: Optional[pd.DataFrame] = None
     mapped_columns: dict[str, str] = field(default_factory=dict)
     scoring_system: str = "PPR"
+    league_format: str = "Standard"
     selected_positions: set[str] = field(
         default_factory=lambda: {"QB", "RB", "WR", "TE", "K", "DEF"}
     )
@@ -67,13 +68,20 @@ class StateStore:
         self._state = replace(self._state, **changes)
         self._notify()
 
-    def reset(self, keep_scoring_system: bool = True, keep_positions: bool = True) -> None:
+    def reset(
+        self,
+        keep_scoring_system: bool = True,
+        keep_positions: bool = True,
+        keep_league_format: bool = True,
+    ) -> None:
         self._logger.info("State reset")
         new_state = AppState()
         if keep_scoring_system:
             new_state.scoring_system = self._state.scoring_system
         if keep_positions:
             new_state.selected_positions = set(self._state.selected_positions)
+        if keep_league_format:
+            new_state.league_format = self._state.league_format
         self._state = new_state
         self._notify()
 

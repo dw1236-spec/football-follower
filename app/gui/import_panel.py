@@ -27,7 +27,7 @@ from app.data import column_mapping, ingestion, sample_template
 from app.gui.mapping_dialog import ColumnMappingDialog
 from app.gui.widgets import DropZoneWidget, EmptyStatePlaceholder, SkeletonLoader
 from app.logging_setup import get_logger
-from app.schema import REQUIRED_FIELD_NAMES, SCORING_SYSTEMS
+from app.schema import LEAGUE_FORMATS, REQUIRED_FIELD_NAMES, SCORING_SYSTEMS
 
 PREVIEW_ROWS = 10
 
@@ -36,6 +36,7 @@ class ImportPanel(QWidget):
     data_loaded = pyqtSignal(object, dict, list, str)  # (clean_dataframe, mapping, warnings, path)
     error_occurred = pyqtSignal(str)
     scoring_system_changed = pyqtSignal(str)
+    league_format_changed = pyqtSignal(str)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -69,6 +70,19 @@ class ImportPanel(QWidget):
         scoring_layout.addWidget(self.scoring_combo)
         outer.addWidget(scoring_box)
 
+        league_format_box = QGroupBox("League Format")
+        league_format_layout = QHBoxLayout(league_format_box)
+        self.league_format_combo = QComboBox()
+        self.league_format_combo.addItems(LEAGUE_FORMATS)
+        self.league_format_combo.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.league_format_combo.setToolTip(
+            "Superflex adds pooled FLEX (RB/WR/TE) and SUPERFLEX (QB/RB/WR/TE) "
+            "rows to your results, since those positions share a roster slot."
+        )
+        self.league_format_combo.currentTextChanged.connect(self.league_format_changed.emit)
+        league_format_layout.addWidget(self.league_format_combo)
+        outer.addWidget(league_format_box)
+
         preview_label = QLabel("Preview (first 10 rows)")
         preview_label.setStyleSheet("font-weight: 600; margin-top: 6px;")
         outer.addWidget(preview_label)
@@ -96,6 +110,13 @@ class ImportPanel(QWidget):
         if idx >= 0:
             self.scoring_combo.setCurrentIndex(idx)
         self.scoring_combo.blockSignals(False)
+
+    def set_league_format(self, value: str) -> None:
+        self.league_format_combo.blockSignals(True)
+        idx = self.league_format_combo.findText(value)
+        if idx >= 0:
+            self.league_format_combo.setCurrentIndex(idx)
+        self.league_format_combo.blockSignals(False)
 
     # -- file loading flow -----------------------------------------------------------
     def load_file(self, path: str) -> None:
@@ -135,6 +156,11 @@ class ImportPanel(QWidget):
         try:
             mapped_df = column_mapping.apply_mapping(raw_df, mapping)
             clean_df, report = column_mapping.validate_and_clean(mapped_df)
+        except column_mapping.MappingError as exc:
+            self._skeleton.stop()
+            self.preview_stack.setCurrentWidget(self._empty_state)
+            self.error_occurred.emit(str(exc))
+            return
         except Exception as exc:  # noqa: BLE001
             self._skeleton.stop()
             self.preview_stack.setCurrentWidget(self._empty_state)

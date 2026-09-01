@@ -74,6 +74,20 @@ def test_import_panel_load_valid_csv(qtbot, tmp_path, sample_df):
     assert panel.preview_table.rowCount() == min(10, len(sample_df))
 
 
+def test_import_panel_league_format_defaults_and_emits_signal(qtbot):
+    panel = ImportPanel()
+    qtbot.addWidget(panel)
+    assert panel.league_format_combo.currentText() == "Standard"
+
+    received = []
+    panel.league_format_changed.connect(received.append)
+    panel.set_league_format("Superflex")
+    assert not received  # programmatic set must not emit (mirrors scoring combo)
+
+    panel.league_format_combo.setCurrentText("Standard")
+    assert received == ["Standard"]
+
+
 def test_import_panel_invalid_extension_emits_error(qtbot):
     panel = ImportPanel()
     qtbot.addWidget(panel)

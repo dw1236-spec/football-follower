@@ -11,6 +11,7 @@ CONFIG_PATH = CONFIG_DIR / "config.json"
 DEFAULT_CONFIG: dict[str, Any] = {
     "last_file_path": None,
     "scoring_system": "PPR",
+    "league_format": "Standard",
     "selected_positions": ["QB", "RB", "WR", "TE", "K", "DEF"],
     "export_directory": None,
     "window_geometry": None,

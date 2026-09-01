@@ -81,6 +81,50 @@ def test_small_group_falls_back_to_mean_without_crashing():
     assert np.isclose(flagged["expected_points"].iloc[0], flagged["expected_points"].iloc[1])
 
 
+def test_standard_format_has_no_pooled_groups(sample_df: pd.DataFrame):
+    result = analyze(sample_df, league_format="Standard")
+    assert "FLEX" not in result.position_metrics.index
+    assert "SUPERFLEX" not in result.position_metrics.index
+
+
+def test_superflex_format_adds_pooled_groups(sample_df: pd.DataFrame):
+    result = analyze(sample_df, league_format="Superflex")
+    metrics = result.position_metrics
+    assert "FLEX" in metrics.index
+    assert "SUPERFLEX" in metrics.index
+
+    real_positions = set(sample_df["position"].unique())
+    assert set(metrics.index) == real_positions | {"FLEX", "SUPERFLEX"}
+
+    flex_players = result.player_level[result.player_level["position"].isin(["RB", "WR", "TE"])]
+    superflex_players = result.player_level[
+        result.player_level["position"].isin(["QB", "RB", "WR", "TE"])
+    ]
+    assert metrics.loc["FLEX", "n"] == len(flex_players)
+    assert metrics.loc["SUPERFLEX", "n"] == len(superflex_players)
+
+    # strongest/weakest are chosen from real positions only, never a pooled group
+    assert result.strongest_position in real_positions
+    assert result.weakest_position in real_positions
+
+
+def test_superflex_groups_omitted_when_no_eligible_players():
+    df = pd.DataFrame(
+        {
+            "player_name": ["A", "B"],
+            "position": ["K", "K"],
+            "draft_rank": [140, 155],
+            "games_played": [16, 16],
+            "total_points": [148.0, 152.5],
+            "points_per_game": [9.3, 9.5],
+            "season_rank": [5, 3],
+        }
+    )
+    result = analyze(df, league_format="Superflex")
+    assert "FLEX" not in result.position_metrics.index
+    assert "SUPERFLEX" not in result.position_metrics.index
+
+
 def test_analyze_handles_empty_dataframe_gracefully():
     empty = pd.DataFrame(
         columns=[

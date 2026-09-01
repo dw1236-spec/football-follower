@@ -1,4 +1,5 @@
 import pandas as pd
+import pytest
 
 from app.data import column_mapping
 from app.schema import REQUIRED_FIELD_NAMES
@@ -58,6 +59,32 @@ def test_validate_and_clean_output_dtypes(sample_df: pd.DataFrame):
     assert clean["season_rank"].dtype.kind == "i"
     assert clean["total_points"].dtype.kind == "f"
     assert clean["points_per_game"].dtype.kind == "f"
+
+
+def test_suggest_mapping_never_reuses_a_column():
+    """A column that's a fuzzy-match candidate for two fields (here, a header
+    close to both 'draft rank' and 'season rank') must only be claimed by
+    one of them - otherwise apply_mapping would silently duplicate a column
+    into two output fields and drop the other field's data entirely."""
+    columns = ["Player", "Pos", "Games", "FPTS", "PPG", "draft season rank"]
+    mapping = column_mapping.suggest_mapping(columns)
+    matched = [v for v in mapping.values() if v]
+    assert len(matched) == len(set(matched))
+    assert mapping["draft_rank"] == "draft season rank"
+    assert mapping["season_rank"] is None
+
+
+def test_duplicate_targets_detects_conflict():
+    mapping = {"player_name": "A", "position": "A", "draft_rank": "B"}
+    conflicts = column_mapping.duplicate_targets(mapping)
+    assert conflicts == {"A": ["player_name", "position"]}
+
+
+def test_apply_mapping_raises_on_duplicate_target(sample_df: pd.DataFrame):
+    mapping = {name: name for name in REQUIRED_FIELD_NAMES}
+    mapping["position"] = "player_name"  # both fields now point at the same column
+    with pytest.raises(column_mapping.MappingError):
+        column_mapping.apply_mapping(sample_df, mapping)
 
 
 def test_derives_points_per_game_when_missing():

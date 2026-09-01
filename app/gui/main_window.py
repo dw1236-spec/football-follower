@@ -74,6 +74,7 @@ class MainWindow(QMainWindow):
         self.import_panel.data_loaded.connect(self._on_data_loaded)
         self.import_panel.error_occurred.connect(self.banner.show_error)
         self.import_panel.scoring_system_changed.connect(self._on_scoring_system_changed)
+        self.import_panel.league_format_changed.connect(self._on_league_format_changed)
 
         self.control_panel.positions_changed.connect(self._on_positions_changed)
         self.control_panel.run_requested.connect(self._on_run_requested)
@@ -86,6 +87,9 @@ class MainWindow(QMainWindow):
     def _restore_session(self) -> None:
         self.import_panel.set_scoring_system(self._config.get("scoring_system", "PPR"))
         self._store.update(scoring_system=self._config.get("scoring_system", "PPR"))
+
+        self.import_panel.set_league_format(self._config.get("league_format", "Standard"))
+        self._store.update(league_format=self._config.get("league_format", "Standard"))
 
         positions = set(self._config.get("selected_positions") or [])
         if positions:
@@ -107,6 +111,7 @@ class MainWindow(QMainWindow):
             {
                 "last_file_path": state.loaded_file_path,
                 "scoring_system": state.scoring_system,
+                "league_format": state.league_format,
                 "selected_positions": sorted(state.selected_positions),
                 "export_directory": state.export_directory,
                 "window_geometry": None,
@@ -134,6 +139,10 @@ class MainWindow(QMainWindow):
         self.results_panel.set_scoring_system(scoring_system)
         self._persist_config()
 
+    def _on_league_format_changed(self, league_format: str) -> None:
+        self._store.update(league_format=league_format)
+        self._persist_config()
+
     # -- control panel handlers ---------------------------------------------------
     def _on_positions_changed(self, positions: set[str]) -> None:
         self._store.update(selected_positions=positions)
@@ -153,7 +162,9 @@ class MainWindow(QMainWindow):
         self.results_panel.show_loading()
         self._store.update(is_analyzing=True)
 
-        self._worker = AnalysisWorker(state.raw_dataframe, set(state.selected_positions))
+        self._worker = AnalysisWorker(
+            state.raw_dataframe, set(state.selected_positions), state.league_format
+        )
         self._worker.progress.connect(self.control_panel.set_status)
         self._worker.finished_ok.connect(self._on_analysis_finished)
         self._worker.failed.connect(self._on_analysis_failed)

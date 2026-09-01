@@ -35,8 +35,13 @@ python main.py
 2. If your spreadsheet's column names don't match the expected schema, a
    mapping dialog lets you match your columns to the required fields - no
    need to rename anything in your file.
-3. Pick your **scoring system** (PPR / Half-PPR / Standard) - this is
-   remembered the next time you open the app.
+3. Pick your **scoring system** (PPR / Half-PPR / Standard) and **league
+   format** (Standard / Superflex) - both are remembered the next time you
+   open the app. Superflex adds two pooled rows to your results: **FLEX**
+   (RB/WR/TE) and **SUPERFLEX** (QB/RB/WR/TE) - the actual pools of players
+   that compete for a single Flex or Superflex roster slot, so you can judge
+   a player against the whole pool he's competing with for that slot, not
+   just against his own position.
 4. In the center panel, check/uncheck **positions** to include, then click
    **Run Analysis** (or press Enter while it's focused).
 5. Results appear on the right in three tabs:
@@ -74,6 +79,18 @@ anything it can't guess.
 For each position, a regression fits "expected fantasy points" as a function
 of draft slot. A player is a **bust** if they scored more than 20% below
 that expectation, and a **value pick** if they beat it by 20% or more.
+
+## Superflex leagues
+
+Superflex ADP already reflects the format (QBs get drafted far earlier
+since two can start at once), so the correlation/bust/value math above needs
+no changes to work with Superflex data - just import your Superflex ADP as
+usual. Switching **League Format** to Superflex only adds the pooled FLEX
+and SUPERFLEX rows described above; each position keeps its own
+draft-slot-vs-points regression (QB and RB point totals aren't on the same
+scale, so pooling the regression itself would be meaningless) and the pooled
+rows simply aggregate correlation/MAE/bust/value across the players who
+actually share that roster slot.
 
 ## Running the tests
 

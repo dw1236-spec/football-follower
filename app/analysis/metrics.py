@@ -6,6 +6,16 @@ smooth "expected points for this draft slot" curve for that position. A
 player is a "bust" if their actual total_points falls more than
 BUST_VALUE_THRESHOLD (20%) below that expected value, and a "value pick" if
 they beat it by the same margin.
+
+Superflex support: when `league_format="Superflex"`, `analyze()` adds extra
+pooled rows to `position_metrics` (see `SUPERFLEX_POSITION_GROUPS`) - a
+"FLEX" row over RB/WR/TE and a "SUPERFLEX" row over QB/RB/WR/TE. These reuse
+the bust/value flags already computed per player's real position (each
+position keeps its own expected-points curve; QBs and RBs score on very
+different scales, so pooling the regression itself would be meaningless) and
+simply aggregate correlation/MAE/bust/value across the pooled player set -
+the group of players that actually competes for a single Flex/Superflex
+roster slot.
 """
 from __future__ import annotations
 
@@ -18,7 +28,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error
 
 from app.logging_setup import get_logger
-from app.schema import BUST_VALUE_THRESHOLD
+from app.schema import BUST_VALUE_THRESHOLD, SUPERFLEX_POSITION_GROUPS
 
 MIN_ROWS_FOR_REGRESSION = 4
 MIN_ROWS_FOR_CORRELATION = 3
@@ -93,8 +103,17 @@ class AnalysisResult:
     weakest_position: str | None
 
 
-def analyze(df: pd.DataFrame, selected_positions: set[str] | None = None) -> AnalysisResult:
-    """Run the full draft-analysis pipeline and return an AnalysisResult."""
+def analyze(
+    df: pd.DataFrame,
+    selected_positions: set[str] | None = None,
+    league_format: str = "Standard",
+) -> AnalysisResult:
+    """Run the full draft-analysis pipeline and return an AnalysisResult.
+
+    `league_format="Superflex"` additionally appends pooled "FLEX" and
+    "SUPERFLEX" rows to `position_metrics` (see module docstring); it never
+    changes the real per-position rows or `player_level`.
+    """
     logger = get_logger()
     working = df
     if selected_positions:
@@ -111,11 +130,18 @@ def analyze(df: pd.DataFrame, selected_positions: set[str] | None = None) -> Ana
     position_metrics.index.name = "position"
     position_metrics = position_metrics.sort_index()
 
-    overall_metrics = pd.Series(_group_metrics_row(working), name=OVERALL_LABEL)
-
     ranked = position_metrics["spearman"].dropna().abs().sort_values(ascending=False)
     strongest = ranked.index[0] if len(ranked) else None
     weakest = ranked.index[-1] if len(ranked) else None
+
+    if league_format == "Superflex":
+        for label, positions in SUPERFLEX_POSITION_GROUPS.items():
+            group = working[working["position"].isin(positions)]
+            if not group.empty:
+                position_metrics.loc[label] = _group_metrics_row(group)
+        position_metrics.index.name = "position"
+
+    overall_metrics = pd.Series(_group_metrics_row(working), name=OVERALL_LABEL)
 
     logger.info(
         "Analysis complete for %d players across %d positions.",

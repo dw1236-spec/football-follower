@@ -4,6 +4,7 @@ from __future__ import annotations
 import pandas as pd
 
 from app.analysis.metrics import AnalysisResult
+from app.schema import SUPERFLEX_POSITION_GROUPS
 
 
 def _fmt_pct(value: float) -> str:
@@ -31,6 +32,8 @@ def build_recommendations(result: AnalysisResult) -> list[str]:
     """Return a list of plain-language recommendation sentences."""
     lines: list[str] = []
     metrics = result.position_metrics
+    real_positions = [p for p in metrics.index if p not in SUPERFLEX_POSITION_GROUPS]
+    real_metrics = metrics.loc[real_positions]
 
     if result.strongest_position is not None:
         row = metrics.loc[result.strongest_position]
@@ -48,7 +51,7 @@ def build_recommendations(result: AnalysisResult) -> list[str]:
             f"multiple {result.weakest_position} picks rather than committing early."
         )
 
-    for position, row in metrics.iterrows():
+    for position, row in real_metrics.iterrows():
         reliability = _top_pick_reliability(result.player_level, position)
         if reliability is not None:
             lines.append(
@@ -56,7 +59,7 @@ def build_recommendations(result: AnalysisResult) -> list[str]:
                 f"{_fmt_pct(reliability)} of the time this season."
             )
 
-    sorted_by_bust = metrics["bust_rate"].dropna().sort_values(ascending=False)
+    sorted_by_bust = real_metrics["bust_rate"].dropna().sort_values(ascending=False)
     if len(sorted_by_bust):
         riskiest = sorted_by_bust.index[0]
         lines.append(
@@ -65,13 +68,30 @@ def build_recommendations(result: AnalysisResult) -> list[str]:
             "avoid overpaying for early-round certainty at this position."
         )
 
-    sorted_by_value = metrics["value_rate"].dropna().sort_values(ascending=False)
+    sorted_by_value = real_metrics["value_rate"].dropna().sort_values(ascending=False)
     if len(sorted_by_value):
         best_value = sorted_by_value.index[0]
         lines.append(
             f"{best_value} offered the best chance of a value pick "
             f"({_fmt_pct(sorted_by_value.iloc[0])} of picks beat expectation by 20%+) - "
             "a good spot to look for late-round upside."
+        )
+
+    if "SUPERFLEX" in metrics.index:
+        row = metrics.loc["SUPERFLEX"]
+        lines.append(
+            f"Across every Superflex-eligible player (QB/RB/WR/TE), ADP explains final finish "
+            f"with a Spearman of {_fmt_corr(row['spearman'])} and a {_fmt_pct(row['bust_rate'])} "
+            "bust rate - weigh players for your Superflex slot against this pooled bar, not "
+            "against their own position's rate alone."
+        )
+
+    if "FLEX" in metrics.index:
+        row = metrics.loc["FLEX"]
+        lines.append(
+            f"The RB/WR/TE Flex pool delivered a {_fmt_pct(row['value_rate'])} value-pick rate "
+            f"and a {_fmt_pct(row['bust_rate'])} bust rate overall - compare a player's own "
+            "position rate above to this pooled rate when deciding who profiles best for Flex."
         )
 
     if not lines:

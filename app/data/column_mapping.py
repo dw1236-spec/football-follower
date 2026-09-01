@@ -24,32 +24,46 @@ def _normalize(name: str) -> str:
 
 
 def suggest_mapping(columns: list[str]) -> dict[str, str | None]:
-    """Best-guess mapping of {schema_field_name: source_column_name | None}."""
+    """Best-guess mapping of {schema_field_name: source_column_name | None}.
+
+    Each source column is claimed by at most one schema field - once a
+    column has been matched, it's removed from the pool so a later field's
+    exact or fuzzy match can't silently double-claim it.
+    """
     normalized_columns = {_normalize(c): c for c in columns}
     mapping: dict[str, str | None] = {}
+    used_norm_cols: set[str] = set()
 
     for schema_field in REQUIRED_FIELDS:
         match: str | None = None
+        remaining = {
+            norm: orig for norm, orig in normalized_columns.items() if norm not in used_norm_cols
+        }
 
         # 1. exact normalized match against the field name or any alias
         candidates = {schema_field.name, *schema_field.aliases}
         normalized_candidates = {_normalize(c) for c in candidates}
-        for norm_col, original_col in normalized_columns.items():
+        matched_norm: str | None = None
+        for norm_col, original_col in remaining.items():
             if norm_col in normalized_candidates:
                 match = original_col
+                matched_norm = norm_col
                 break
 
         # 2. fuzzy match fallback
         if match is None:
             close = difflib.get_close_matches(
                 _normalize(schema_field.name),
-                list(normalized_columns.keys()),
+                list(remaining.keys()),
                 n=1,
                 cutoff=0.72,
             )
             if close:
-                match = normalized_columns[close[0]]
+                matched_norm = close[0]
+                match = remaining[matched_norm]
 
+        if matched_norm is not None:
+            used_norm_cols.add(matched_norm)
         mapping[schema_field.name] = match
 
     return mapping
@@ -63,8 +77,33 @@ def missing_fields(mapping: dict[str, str | None]) -> list[str]:
     return [name for name in REQUIRED_FIELD_NAMES if not mapping.get(name)]
 
 
+def duplicate_targets(mapping: dict[str, str | None]) -> dict[str, list[str]]:
+    """Return {source_column: [field_names]} for any source column claimed by
+    more than one required field - such a mapping would silently corrupt
+    the resulting DataFrame if applied."""
+    by_column: dict[str, list[str]] = {}
+    for field_name, source_col in mapping.items():
+        if source_col:
+            by_column.setdefault(source_col, []).append(field_name)
+    return {col: fields for col, fields in by_column.items() if len(fields) > 1}
+
+
+class MappingError(Exception):
+    """Raised when a proposed column mapping would corrupt the output
+    (e.g. the same source column claimed by two required fields)."""
+
+
 def apply_mapping(df: pd.DataFrame, mapping: dict[str, str]) -> pd.DataFrame:
     """Return a new DataFrame with only the required columns, canonically named."""
+    conflicts = duplicate_targets(mapping)
+    if conflicts:
+        details = "; ".join(
+            f"'{col}' -> {', '.join(fields)}" for col, fields in conflicts.items()
+        )
+        raise MappingError(
+            "The same spreadsheet column was matched to more than one required "
+            f"field ({details}). Please map each field to a different column."
+        )
     rename = {source_col: field_name for field_name, source_col in mapping.items()}
     subset_cols = list(mapping.values())
     result = df[subset_cols].rename(columns=rename)
