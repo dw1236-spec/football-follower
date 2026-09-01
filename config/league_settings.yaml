@@ -1,0 +1,19 @@
+# Default league settings for the Superflex draft assistant.
+# Edit this file, or pass --config path/to/your.yaml to draft_assistant.py,
+# to match your own league. Values here must match
+# app.draft.settings.DEFAULT_LEAGUE_SETTINGS - see tests/test_draft_settings.py.
+
+team_count: 10
+scoring: Half-PPR
+superflex: true
+
+roster:
+  qb: 1
+  rb: 2
+  wr: 2
+  te: 1
+  flex: 1        # RB/WR/TE eligible
+  superflex: 1    # QB/RB/WR/TE eligible
+  k: 1
+  dst: 1
+  bench: 6

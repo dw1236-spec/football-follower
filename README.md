@@ -105,6 +105,40 @@ On a Linux machine without a display (e.g. CI, SSH), run headless:
 QT_QPA_PLATFORM=offscreen pytest
 ```
 
+## Draft assistant (VOR-based, Superflex-ready)
+
+A separate CLI tool, `draft_assistant.py`, builds a live draft board using
+Value Over Replacement (VOR) rather than raw rankings or ADP:
+
+```bash
+python draft_assistant.py                        # scrape + VOR + draft_board.csv
+python draft_assistant.py --offline               # no network - bundled sample pool
+python draft_assistant.py --config my_league.yaml --output board.json
+```
+
+- **League settings** come from a YAML/JSON config (`config/league_settings.yaml`
+  by default - 10 teams, Half-PPR, Superflex). Edit it or pass `--config`.
+- **Replacement baselines are dynamic**, derived from team count and roster
+  construction (`app.draft.vor.compute_replacement_ranks`) - including a
+  documented allocation of FLEX and SUPERFLEX slots across their eligible
+  positions, so a Superflex league correctly pushes the QB replacement level
+  (and therefore top-QB VOR) far deeper than a 1-QB league.
+- **Scraping** targets FantasyPros' rankings (`app/draft/scraper.py`), with
+  retries/backoff on transient failures, a fast-fail on permanent HTTP
+  errors, and an automatic fallback to a bundled offline sample pool if the
+  network or page-parsing fails for any reason - the pipeline never hard
+  crashes because a website is down or changed layout. Raw HTML and parsed
+  output are cached separately under `~/.nfl_draft_analyzer/draft_cache/`
+  for debugging.
+- **Output** is an import-ready CSV/JSON (`player_name, position, team,
+  projected_points, vor, tier, adp, recommended_round`) plus a console
+  summary of the top players per position.
+- **Dry-run auditing**: `app.draft.recommend.recommend_pick(..., dry_run=True)`
+  logs the VOR score and replacement baseline behind every candidate it
+  considered for a pick, so a recommendation can always be verified.
+
+Run `mypy app/draft` to type-check this package (see `mypy.ini`).
+
 ## Building a standalone app
 
 PyInstaller cannot cross-compile, so build on the OS you're targeting:
@@ -138,7 +172,20 @@ app/
   export/
     exporters.py         CSV / PNG-zip / Markdown export
   gui/                    PyQt6 widgets (Import/Control/Results panels, dialogs)
-main.py                   application entry point
+  draft/                  VOR draft assistant (separate CLI tool, see above)
+    schema.py             projections/draft-board column schema
+    settings.py           LeagueSettings/RosterSlots + YAML/JSON config loader
+    vor.py                replacement-rank + VOR + tiering engine
+    projections.py        rank-based points fallback when a source lacks real FPTS
+    scraper.py            FantasyPros fetch/parse, retries, cache, offline fallback
+    sample_projections.py bundled offline ADP pool (scrape fallback + demos)
+    recommend.py          live pick recommendation + dry-run VOR audit logging
+    exporter.py           CSV/JSON import-ready draft board export
+    cli.py                console entry point (see draft_assistant.py)
+main.py                   desktop app entry point
+draft_assistant.py        draft assistant CLI entry point
+config/
+  league_settings.yaml    default 10-team Half-PPR Superflex league settings
 tests/                    pytest + pytest-qt suite
 packaging/                PyInstaller spec + per-OS build scripts
 run_windows.bat           one-click Windows launcher
